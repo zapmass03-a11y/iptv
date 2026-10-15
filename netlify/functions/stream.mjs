@@ -1,5 +1,5 @@
 // Repassa o vídeo (ao vivo, filme, episódio). Só é usado se DIRECT_BASE estiver vazio no index.html.
-const UP = (Netlify.env.get('IPTV_SERVER') || 'http://nglob.top').replace(/\/$/, '');
+const UP = (Netlify.env.get('IPTV_SERVER') || 'http://suite.lat').replace(/\/$/, '');
 
 export default async (req) => {
   const m = new URL(req.url).pathname.match(/^\/stream\/(live|movie|series)\/([^/]+)\/([^/]+)\/([^/]+)$/);
