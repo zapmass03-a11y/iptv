@@ -1,0 +1,14 @@
+SAMUEL TV (Netlify)
+
+PUBLICAR
+1. Crie um repositório no GitHub e envie esta pasta inteira (netlify.toml, public, netlify).
+2. Na Netlify: Add new site > Import an existing project > escolha o repositório.
+   Não precisa preencher build command. Deploy.
+3. (Se o servidor IPTV tiver porta) Site configuration > Environment variables:
+   IPTV_SERVER = http://nglob.top:PORTA   e faça um novo deploy.
+Alternativa sem GitHub: npm i -g netlify-cli, depois "netlify deploy --prod" nesta pasta.
+
+VÍDEO
+Por padrão o vídeo passa pela função /stream da Netlify (DIRECT_BASE vazio no index.html).
+Isso funciona para testar, mas funções têm limite de tempo e de banda e podem cortar o vídeo.
+Se o seu servidor responder em HTTPS, preencha DIRECT_BASE no index.html com o endereço https.
