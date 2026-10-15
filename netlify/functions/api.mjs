@@ -1,6 +1,6 @@
 // Repassa as chamadas da API (categorias, listas, episódios) para o servidor IPTV.
 // Só fala com o servidor definido em IPTV_SERVER, nunca com endereços arbitrários.
-const UP = (Netlify.env.get('IPTV_SERVER') || 'http://nglob.top').replace(/\/$/, '');
+const UP = (Netlify.env.get('IPTV_SERVER') || 'http://suite.lat').replace(/\/$/, '');
 
 export default async (req) => {
   const u = new URL(req.url);
