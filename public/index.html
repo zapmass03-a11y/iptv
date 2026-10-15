@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Samuel TV</title>
+<script src="https://cdn.jsdelivr.net/npm/mpegts.js@1.7.3/dist/mpegts.js"></script>
+<style>
+:root{--bg:#0f1530;--panel:#171f44;--line:#2a3566;--tx:#eef0f8;--mut:#9aa3c7;--ac:#3dd6d0;--ac-tx:#06201f}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.45 "Trebuchet MS","Segoe UI",sans-serif}
+button,input{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--ac);outline-offset:2px}
+[hidden]{display:none!important}
+#login{min-height:100vh;display:grid;place-items:center;padding:24px}
+#login form{width:min(360px,100%);display:grid;gap:12px}
+#login h1{font:800 3rem/1 Georgia,serif;margin:0 0 8px;letter-spacing:-.02em}
+#login h1 b{color:var(--ac)}
+input{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px 14px;width:100%}
+.go{background:var(--ac);color:var(--ac-tx);border:0;border-radius:6px;padding:12px;font-weight:700}
+#err{color:#ff8a8a;min-height:1.4em;margin:0}
+#app{display:grid;grid-template-columns:240px 1fr;grid-template-rows:auto 1fr;height:100vh}
+header{grid-column:1/3;display:flex;gap:12px;align-items:center;padding:10px 16px;border-bottom:1px solid var(--line)}
+header strong{font:800 1.3rem Georgia,serif;margin-right:8px}
+header strong b{color:var(--ac)}
+.tab{background:none;border:0;padding:8px 14px;border-radius:6px;color:var(--mut)}
+.tab[aria-selected=true]{background:var(--panel);color:var(--tx);box-shadow:inset 0 -2px var(--ac)}
+#q{margin-left:auto;max-width:260px}
+.out{background:none;border:1px solid var(--line);border-radius:6px;padding:8px 12px;color:var(--mut)}
+aside{overflow:auto;border-right:1px solid var(--line);padding:8px}
+aside button{display:block;width:100%;text-align:left;background:none;border:0;padding:8px 10px;border-radius:6px;color:var(--mut)}
+aside button[aria-current=true]{background:var(--panel);color:var(--tx)}
+main{overflow:auto;padding:16px}
+#grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:14px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:0;overflow:hidden;text-align:left}
+.card img{width:100%;aspect-ratio:2/3;object-fit:cover;background:#0b1026;display:block}
+.live .card img{aspect-ratio:16/10;object-fit:contain;padding:12px}
+.card span{display:block;padding:8px 10px;font-size:.85rem;line-height:1.3}
+#msg{color:var(--mut)}
+#player{position:fixed;inset:0;background:rgba(5,8,22,.94);display:grid;grid-template-rows:auto 1fr auto;padding:16px;gap:10px;z-index:5}
+#player video{width:100%;height:100%;min-height:0;background:#000;border-radius:8px}
+#ptitle{margin:0;font-size:1.1rem}
+#eps{max-height:28vh;overflow:auto;display:flex;flex-wrap:wrap;gap:6px;align-items:flex-start}
+#eps h4{width:100%;margin:6px 0 0;color:var(--mut);font-weight:600}
+#eps button{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:6px 10px;font-size:.85rem}
+#eps button[aria-current=true]{border-color:var(--ac)}
+.bar{display:flex;gap:10px;align-items:center}
+.bar button{margin-left:auto}
+@media(max-width:700px){#app{grid-template-columns:1fr;grid-template-rows:auto auto 1fr}aside{display:flex;overflow-x:auto;border:0;border-bottom:1px solid var(--line)}aside button{width:auto;white-space:nowrap}header{flex-wrap:wrap}#q{max-width:none;margin:0;flex:1 1 100%}}
+</style>
+</head>
+<body>
+<section id="login">
+  <form id="lf">
+    <h1>Samuel <b>TV</b></h1>
+    <input id="u" placeholder="Usuário" autocomplete="username" required>
+    <input id="p" type="password" placeholder="Senha" autocomplete="current-password" required>
+    <button class="go">Entrar</button>
+    <p id="err" role="alert"></p>
+  </form>
+</section>
+
+<div id="app" hidden>
+  <header>
+    <strong>Samuel <b>TV</b></strong>
+    <div role="tablist">
+      <button class="tab" role="tab" data-k="live">Ao vivo</button>
+      <button class="tab" role="tab" data-k="vod">Filmes</button>
+      <button class="tab" role="tab" data-k="series">Séries</button>
+    </div>
+    <input id="q" type="search" placeholder="Buscar nesta categoria">
+    <button class="out" id="out">Sair</button>
+  </header>
+  <aside id="cats"></aside>
+  <main><p id="msg"></p><div id="grid"></div></main>
+</div>
+
+<div id="player" hidden>
+  <div class="bar"><h3 id="ptitle"></h3><button class="out" id="close">Fechar</button></div>
+  <video id="v" controls autoplay playsinline></video>
+  <div id="eps"></div>
+</div>
+
+<script>
+const $=s=>document.querySelector(s);
+const MODES={
+  live:{cat:'get_live_categories',list:'get_live_streams'},
+  vod:{cat:'get_vod_categories',list:'get_vod_streams'},
+  series:{cat:'get_series_categories',list:'get_series'}
+};
+// Se o seu servidor IPTV aceitar HTTPS, coloque aqui (ex.: 'https://nglob.top') e o vídeo vai direto, sem passar pela Netlify.
+const DIRECT_BASE='';
+const streamUrl=(type,id,ext)=>`${DIRECT_BASE||'/stream'}/${type}/${cred.u}/${cred.p}/${id}.${ext}`;
+let cred=null,mode='live',cats=[],items=[],catId=null,mp=null;
+
+async function api(action,extra={}){
+  const qs=new URLSearchParams({username:cred.u,password:cred.p,...(action?{action}:{}),...extra});
+  const r=await fetch('/api?'+qs);
+  if(!r.ok)throw new Error('Servidor IPTV não respondeu ('+r.status+')');
+  return r.json();
+}
+async function enter(c){
+  cred=c;$('#err').textContent='';
+  try{
+    const d=await api();
+    if(!d.user_info||d.user_info.auth!==1)throw new Error('Usuário ou senha incorretos.');
+    sessionStorage.setItem('stv',JSON.stringify(c));
+    $('#login').hidden=true;$('#app').hidden=false;setMode('live');
+  }catch(e){cred=null;$('#err').textContent=e.message;$('#login').hidden=false;$('#app').hidden=true}
+}
+$('#lf').onsubmit=e=>{e.preventDefault();enter({u:$('#u').value.trim(),p:$('#p').value})};
+$('#out').onclick=()=>{sessionStorage.removeItem('stv');stop();location.reload()};
+
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>setMode(t.dataset.k));
+async function setMode(m){
+  mode=m;catId=null;$('#q').value='';
+  document.querySelectorAll('.tab').forEach(t=>t.setAttribute('aria-selected',t.dataset.k===m));
+  $('#grid').className=m==='live'?'live':'';$('#grid').innerHTML='';$('#cats').innerHTML='';
+  $('#msg').textContent='Carregando categorias…';
+  try{cats=await api(MODES[m].cat)}catch(e){$('#msg').textContent=e.message;return}
+  const box=$('#cats');
+  cats.forEach(c=>{
+    const b=document.createElement('button');b.textContent=c.category_name;
+    b.onclick=()=>pick(String(c.category_id),b);box.appendChild(b);
+  });
+  if(cats.length)pick(String(cats[0].category_id),box.firstChild);else $('#msg').textContent='Nenhuma categoria encontrada.';
+}
+async function pick(id,btn){
+  catId=id;
+  document.querySelectorAll('#cats button').forEach(b=>b.removeAttribute('aria-current'));
+  btn.setAttribute('aria-current','true');
+  $('#msg').textContent='Carregando…';$('#grid').innerHTML='';
+  try{items=await api(MODES[mode].list,id?{category_id:id}:{})}catch(e){$('#msg').textContent=e.message;return}
+  if(!Array.isArray(items))items=[];
+  render();
+}
+$('#q').oninput=render;
+function render(){
+  const t=$('#q').value.toLowerCase();
+  const list=items.filter(i=>(i.name||'').toLowerCase().includes(t)).slice(0,300);
+  $('#msg').textContent=list.length?'':'Nada encontrado nesta categoria.';
+  const g=$('#grid');g.innerHTML='';
+  list.forEach(i=>{
+    const b=document.createElement('button');b.className='card';
+    const img=document.createElement('img');img.loading='lazy';img.referrerPolicy='no-referrer';
+    img.src=i.stream_icon||i.cover||'';img.alt='';img.onerror=()=>{img.style.visibility='hidden'};
+    const s=document.createElement('span');s.textContent=i.name;
+    b.append(img,s);b.onclick=()=>open(i);g.appendChild(b);
+  });
+}
+
+function stop(){
+  if(mp){mp.destroy();mp=null}
+  const v=$('#v');v.pause();v.removeAttribute('src');v.load();
+}
+function play(url,live){
+  stop();const v=$('#v');
+  if(live){
+    if(!mpegts.getFeatureList().mseLivePlayback){alert('Este navegador não toca TV ao vivo.');return}
+    mp=mpegts.createPlayer({type:'mpegts',isLive:true,url});
+    mp.attachMediaElement(v);mp.load();mp.play();
+  }else{v.src=url;v.play()}
+}
+async function open(i){
+  $('#player').hidden=false;$('#ptitle').textContent=i.name;$('#eps').innerHTML='';
+    if(mode==='live'){play(streamUrl('live',i.stream_id,'ts'),true)}
+  else if(mode==='vod'){play(streamUrl('movie',i.stream_id,i.container_extension||'mp4'))}
+  else{
+    $('#eps').textContent='Carregando episódios…';
+    try{
+      const d=await api('get_series_info',{series_id:i.series_id});
+      const box=$('#eps');box.innerHTML='';let first=true;
+      Object.keys(d.episodes||{}).forEach(sea=>{
+        const h=document.createElement('h4');h.textContent='Temporada '+sea;box.appendChild(h);
+        d.episodes[sea].forEach(ep=>{
+          const b=document.createElement('button');b.textContent=(ep.episode_num||'')+'. '+(ep.title||'Episódio');
+          b.onclick=()=>{
+            box.querySelectorAll('button').forEach(x=>x.removeAttribute('aria-current'));
+            b.setAttribute('aria-current','true');
+            $('#ptitle').textContent=i.name+' – T'+sea+'E'+(ep.episode_num||'');
+            play(streamUrl('series',ep.id,ep.container_extension||'mp4'));
+          };
+          box.appendChild(b);if(first){first=false;b.click()}
+        });
+      });
+      if(first)box.textContent='Sem episódios disponíveis.';
+    }catch(e){$('#eps').textContent=e.message}
+  }
+}
+$('#close').onclick=()=>{stop();$('#player').hidden=true};
+addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#player').hidden)$('#close').click()});
+
+const saved=sessionStorage.getItem('stv');if(saved)enter(JSON.parse(saved));
+</script>
+</body>
+</html>
